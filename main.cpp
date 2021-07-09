@@ -53,7 +53,7 @@ int main()
     fftw_execute(plan);
     std::lock_guard<std::mutex> lock(mutex);
     spectr.clear();
-    for (auto j = 0U; j < SpectrSize / 4; ++j)
+    for (auto j = 0U; j < SpectrSize / 2; ++j)
       spectr.push_back(sqrt(output[j][0] * output[j][0] + output[j][1] * output[j][1]));
   });
   capture.pause(false);
@@ -70,7 +70,7 @@ int main()
       if (!spectr.empty())
       {
         const auto StartFreq = 55;
-        const auto EndFreq = 440;
+        const auto EndFreq = 880;
         auto max =
           std::max(*std::max_element(std::begin(spectr) + StartFreq * SpectrSize / SampleFreq,
                                      std::begin(spectr) + EndFreq * SpectrSize / SampleFreq),
