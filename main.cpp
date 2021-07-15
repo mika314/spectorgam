@@ -9,6 +9,7 @@ static const auto Width = 1280;
 static const auto Height = 720 / 2;
 
 fftw_plan plan;
+std::vector<int16_t> rawInput;
 fftw_complex *input;
 fftw_complex *output;
 std::vector<float> spectr;
@@ -36,20 +37,29 @@ int main()
     return want;
   }();
   SDL_AudioSpec captureHave;
+  rawInput.resize(SpectrSize);
   input = fftw_alloc_complex(SpectrSize);
   output = fftw_alloc_complex(SpectrSize);
   memset(input, 0, SpectrSize * sizeof(fftw_complex));
   memset(output, 0, SpectrSize * sizeof(fftw_complex));
   plan = fftw_plan_dft_1d(SpectrSize, input, output, FFTW_FORWARD, FFTW_MEASURE);
 
+  const auto fps = 30;
   sdl::Audio capture(nullptr, true, &want, &captureHave, 0, [](Uint8 *stream, int len) {
     for (auto i = 0U; i < len / sizeof(int16_t); ++i)
     {
-      input[pos][0] = reinterpret_cast<int16_t *>(stream)[i];
+      rawInput[pos] = reinterpret_cast<int16_t *>(stream)[i];
       input[pos++][1] = 0;
-      if (pos >= SpectrSize)
+      if (pos >= rawInput.size())
         pos = 0;
     }
+
+    for (auto i = 0U; i < SpectrSize; ++i)
+    {
+      input[i][0] = expf(-0.00025f * (SpectrSize - i)) *  rawInput[(pos + i) % rawInput.size()];
+      input[i][1] = 0;
+    }
+
     fftw_execute(plan);
     std::lock_guard<std::mutex> lock(mutex);
     spectr.clear();
@@ -100,7 +110,6 @@ int main()
     }
     r.present();
     const auto t2 = SDL_GetTicks();
-    const auto fps = 30;
     if (1000 / fps > t2 - t1)
       SDL_Delay(1000 / fps - (t2 - t1));
   }
