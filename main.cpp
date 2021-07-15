@@ -1,3 +1,5 @@
+#include "consts.hpp"
+#include "rend.hpp"
 #include <algorithm>
 #include <fftw3.h>
 #include <log/log.hpp>
@@ -5,15 +7,11 @@
 #include <sdlpp/sdlpp.hpp>
 #include <vector>
 
-static const auto Width = 1280;
-static const auto Height = 720 / 2;
-
 fftw_plan plan;
 std::vector<int16_t> rawInput;
 fftw_complex *input;
 fftw_complex *output;
 std::vector<float> spectr;
-const auto SpectrSize = 8 * 4096;
 size_t pos = 0;
 std::mutex mutex;
 
@@ -25,8 +23,6 @@ int main()
   sdl::EventHandler e;
   auto done = false;
   e.quit = [&done](const SDL_QuitEvent &) { done = true; };
-
-  const auto SampleFreq = 48000;
 
   auto want = []() {
     SDL_AudioSpec want;
@@ -56,7 +52,7 @@ int main()
 
     for (auto i = 0U; i < SpectrSize; ++i)
     {
-      input[i][0] = expf(-0.00025f * (SpectrSize - i)) *  rawInput[(pos + i) % rawInput.size()];
+      input[i][0] = expf(-0.00025f * (SpectrSize - i)) * rawInput[(pos + i) % rawInput.size()];
       input[i][1] = 0;
     }
 
@@ -67,48 +63,16 @@ int main()
       spectr.push_back(sqrt(output[j][0] * output[j][0] + output[j][1] * output[j][1]));
   });
   capture.pause(false);
+  Rend rend(r);
   while (!done)
   {
     const auto t1 = SDL_GetTicks();
     while (e.poll()) {}
-    r.setDrawColor(0x00, 0x00, 0x00, 0x00);
-    r.clear();
-
-    bool isWhite[] = {true, false, true, true, false, true, false, true, true, false, true, false};
     {
       std::lock_guard<std::mutex> lock(mutex);
       if (!spectr.empty())
-      {
-        const auto StartFreq = 55;
-        const auto EndFreq = 880;
-        auto max =
-          std::max(*std::max_element(std::begin(spectr) + StartFreq * SpectrSize / SampleFreq,
-                                     std::begin(spectr) + EndFreq * SpectrSize / SampleFreq),
-                   1.5E+6f);
-        for (auto x = 0; x < Width; ++x)
-        {
-          r.setDrawColor(0x00, 0xff, 0x00, 0x00);
-          const auto freq = StartFreq * expf(logf(EndFreq / StartFreq) / Width * x);
-          const auto idx = static_cast<size_t>(freq * SpectrSize / SampleFreq);
-          const auto y = Height - spectr[idx] * Height / max;
-          r.drawLine(x, Height, x, y);
-          if (isWhite[static_cast<int>(12 * log(freq / 27.5) / log(2) + .5) %
-                      (sizeof(isWhite) / sizeof(*isWhite))])
-            r.setDrawColor(0xff, 0xff, 0xff, 0x00);
-          else
-            r.setDrawColor(0x00, 0x00, 0x00, 0x00);
-          r.drawLine(x, 0, x, std::min(y, Height / 2.f));
-        }
-        r.setDrawColor(0x00, 0x00, 0x00, 0x00);
-        const auto k = powf(2.f, 1.f / 12.f);
-        for (auto freq = 1.f * StartFreq * powf(2.f, 1.f / 24.f); freq <= EndFreq; freq *= k)
-        {
-          const auto x = logf(freq / StartFreq) / logf(EndFreq / StartFreq) * Width;
-          r.drawLine(x, Height, x, 0);
-        }
-      }
+        rend.rend(std::move(spectr));
     }
-    r.present();
     const auto t2 = SDL_GetTicks();
     if (1000 / fps > t2 - t1)
       SDL_Delay(1000 / fps - (t2 - t1));
