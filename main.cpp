@@ -4,8 +4,15 @@
 #include <fftw3.h>
 #include <log/log.hpp>
 #include <mutex>
-#include <sdlpp/sdlpp.hpp>
 #include <vector>
+
+#include <sdlpp/sdlpp.hpp>
+
+#include <GL/glew.h>
+
+#include <SDL_opengl.h>
+
+#include <GL/glu.h>
 
 fftw_plan plan;
 std::vector<int16_t> rawInput;
@@ -18,8 +25,12 @@ std::mutex mutex;
 int main()
 {
   sdl::Init init(SDL_INIT_EVERYTHING);
-  sdl::Window w("Spectrogram", 64, 126, Width, Height, SDL_WINDOW_SHOWN);
-  sdl::Renderer r(w.get(), -1, 0);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+  sdl::Window w("Spectrogram", 64, 126, Width, Height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+  Rend rend(w);
+
   sdl::EventHandler e;
   auto done = false;
   e.quit = [&done](const SDL_QuitEvent &) { done = true; };
@@ -63,7 +74,6 @@ int main()
       spectr.push_back(sqrt(output[j][0] * output[j][0] + output[j][1] * output[j][1]));
   });
   capture.pause(false);
-  Rend rend(r);
   while (!done)
   {
     const auto t1 = SDL_GetTicks();
@@ -71,7 +81,10 @@ int main()
     {
       std::lock_guard<std::mutex> lock(mutex);
       if (!spectr.empty())
+      {
         rend.rend(std::move(spectr));
+        w.glSwap();
+      }
     }
     const auto t2 = SDL_GetTicks();
     if (1000 / fps > t2 - t1)
