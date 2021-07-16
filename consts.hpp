@@ -1,6 +1,8 @@
 #pragma once
 
+static const auto StartFreq = 55;
+static const auto EndFreq = 2 * 880;
 static const auto Width = 1920;
 static const auto Height = 1080;
-const auto SpectrSize = 8 * 4096;
-const auto SampleFreq = 48000;
+static const auto SpectrSize = 8 * 4096;
+static const auto SampleFreq = 48000;

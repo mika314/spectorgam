@@ -10,8 +10,6 @@
 
 #include <GL/glu.h>
 
-const auto StartFreq = 55;
-const auto EndFreq = 2 * 880;
 const auto LinesNum = 10 * 30;
 const auto Strade = EndFreq * SpectrSize / SampleFreq;
 
