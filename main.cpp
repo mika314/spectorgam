@@ -26,7 +26,12 @@ int main()
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-  sdl::Window w("Spectrogram", 1920, 2160, Width, Height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+  sdl::Window w("Spectrogram",
+                1920,
+                2160,
+                Width,
+                Height,
+                SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_BORDERLESS);
   Rend rend(w);
 
   sdl::EventHandler e;
@@ -81,11 +86,16 @@ int main()
   auto audio =
     sdl::Audio{nullptr, false, &want, &have, 0, [&playFreq, &playVol](Uint8 *stream, int len) {
                  static double pos = 0;
+                 static float vol = 0;
                  for (auto i = 0U; i < len / sizeof(int16_t); ++i)
                  {
+                   if (playVol > vol)
+                     vol = playVol;
+                   else
+                     vol = vol - 0.001 * (vol - playVol);
                    pos += 1.f * playFreq * 2 * 3.1415926 / SampleFreq;
                    reinterpret_cast<int16_t *>(stream)[i] =
-                     static_cast<int16_t>(playVol * 0x8000 * pow(sin(pos), 5));
+                     static_cast<int16_t>(vol * 0x8000 * (sin(pos) > 0 ? 1 : -1));
                  }
                }};
   audio.pause(false);
@@ -93,12 +103,14 @@ int main()
     playFreq = StartFreq * expf(1.f * e.x / Width * logf(1.f * EndFreq / StartFreq));
   };
   e.mouseButtonDown = [&playVol, &playFreq](const SDL_MouseButtonEvent &e) {
-    playVol = 0.2f;
+    playVol = 0.05f;
     playFreq = StartFreq * expf(1.f * e.x / Width * logf(1.f * EndFreq / StartFreq));
   };
   e.mouseButtonUp = [&playVol](const SDL_MouseButtonEvent &) { playVol = 0.f; };
-  e.keyDown = [&playVol, &playFreq](const SDL_KeyboardEvent &e) {
+  SDL_Keycode lastKey;
+  e.keyDown = [&playVol, &playFreq, &lastKey](const SDL_KeyboardEvent &e) {
     int note = -1;
+    lastKey = e.keysym.sym;
     switch (e.keysym.sym)
     {
     case SDLK_q: note = 0; break;
@@ -139,11 +151,14 @@ int main()
     }
     if (note >= 0)
     {
-      playVol = 0.2f;
+      playVol = 0.05f;
       playFreq = 220 * powf(2, (note + 3) / 12.f);
     }
   };
-  e.keyUp = [&playVol](const SDL_KeyboardEvent &) { playVol = 0.0f; };
+  e.keyUp = [&playVol, &lastKey](const SDL_KeyboardEvent &e) {
+    if (e.keysym.sym == lastKey)
+      playVol = 0.0f;
+  };
 
   while (!done)
   {
