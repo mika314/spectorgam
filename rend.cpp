@@ -223,7 +223,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
       float fNote = log(freq / 55 * 2) / log(2.0) * 12.0 + 0.5;
       int note = int(fNote);
       fNote = abs((fNote - note - 0.5) * 2);
-      float v = LVertexPos3D.z;
+      float v = pow(LVertexPos3D.z, 2);
       vec4 c;
       switch (note % 12)
       {
