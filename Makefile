@@ -1,2 +1,2 @@
 FORCE:
-	coddle
+	coddle && killall spectrogram

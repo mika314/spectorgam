@@ -170,7 +170,28 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
       float freq = LVertexPos3D.x;
       float x = log(freq / StartFreq) / log(EndFreq / StartFreq) * 2 - 1;
       gl_Position = vec4(x, LVertexPos3D.y / 4 - 0.75, 0, 1);
-      color = vec4(0, LVertexPos3D.z, 0, 1.0);
+
+      float fNote = log(freq / 55 * 2) / log(2.0) * 12.0 + 0.5;
+      int note = int(fNote);
+      fNote = abs((fNote - note - 0.5) * 2);
+      float v = LVertexPos3D.z;
+      vec4 c;
+      switch (note % 12)
+      {
+        case 3: c = vec4(1, 0, 0, 1); break;
+        case 10: c = vec4(1, 0.5, 0, 1); break;
+        case 5: c = vec4(1, 1, 0, 1); break;
+        case 0: c = vec4(0.5, 1, 0, 1); break;
+        case 7: c = vec4(0, 1, 0, 1); break;
+        case 2: c = vec4(0, 1, 0.5, 1); break;
+        case 9: c = vec4(0, 1, 1, 1); break;
+        case 4: c = vec4(0, 0.5, 1, 1); break;
+        case 11: c = vec4(0, 0, 1, 1); break;
+        case 6: c = vec4(0.5, 0, 1, 1); break;
+        case 1: c = vec4(1, 0, 1, 1); break;
+        case 8: c = vec4(1, 0, 0.5, 1); break;
+      }
+      color = vec4(c.r * v * (1 - fNote) + v * fNote, c.g * v * (1 - fNote) + v * fNote, c.b * v * (1 - fNote) + v * fNote, c.a);
     }
   )",
                           R"(
@@ -188,6 +209,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
 
     in vec3 LVertexPos3D;
     uniform float offset;
+    float LinesNum = 10 * 30;
 
     out vec4 color;
     void main()
@@ -197,9 +219,35 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
       float freq = LVertexPos3D.x;
       float x = log(freq / StartFreq) / log(EndFreq / StartFreq) * 2 - 1;
       float y = (LVertexPos3D.y - offset) * 2 * 0.75 - 0.5;
-      color = vec4(0, LVertexPos3D.z, 0, 1.0);
+
+      float fNote = log(freq / 55 * 2) / log(2.0) * 12.0 + 0.5;
+      int note = int(fNote);
+      fNote = abs((fNote - note - 0.5) * 2);
+      float v = LVertexPos3D.z;
+      vec4 c;
+      switch (note % 12)
+      {
+        case 3: c = vec4(1, 0, 0, 1); break;
+        case 10: c = vec4(1, 0.5, 0, 1); break;
+        case 5: c = vec4(1, 1, 0, 1); break;
+        case 0: c = vec4(0.5, 1, 0, 1); break;
+        case 7: c = vec4(0, 1, 0, 1); break;
+        case 2: c = vec4(0, 1, 0.5, 1); break;
+        case 9: c = vec4(0, 1, 1, 1); break;
+        case 4: c = vec4(0, 0.5, 1, 1); break;
+        case 11: c = vec4(0, 0, 1, 1); break;
+        case 6: c = vec4(0.5, 0, 1, 1); break;
+        case 1: c = vec4(1, 0, 1, 1); break;
+        case 8: c = vec4(1, 0, 0.5, 1); break;
+      }
+      color = vec4(c.r * v * (1 - fNote) + v * fNote, c.g * v * (1 - fNote) + v * fNote, c.b * v * (1 - fNote) + v * fNote, c.a);
+
       if (y < -0.5)
         y += 2 * 0.75;
+
+      if (y < -0.5 + 2.0 / LinesNum && y >= -0.5 || y > 1.0 - 2.0 / LinesNum)
+        color = vec4(0, 0, 0, 0);
+
       gl_Position = vec4(x, y, 0, 1);
     }
   )",
@@ -315,7 +363,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
       spectrogramData.push_back(1.f * j / LinesNum);
       spectrogramData.push_back(0);
       spectrogramData.push_back(freq);
-//      spectrogramData.push_back(1.f * (j + 1) / LinesNum);
+      //      spectrogramData.push_back(1.f * (j + 1) / LinesNum);
       spectrogramData.push_back(1.f * (j + 1) / LinesNum);
       spectrogramData.push_back(0);
     }
@@ -347,6 +395,11 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
 void Rend::rend(std::vector<float> spectr)
 {
   glClear(GL_COLOR_BUFFER_BIT);
+  ERROR_CHECK();
+
+  glEnable(GL_BLEND);
+  ERROR_CHECK();
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   ERROR_CHECK();
 
   glUseProgram(pianoProgramId);
@@ -447,7 +500,7 @@ void Rend::rend(std::vector<float> spectr)
   // Set index data and render
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
   ERROR_CHECK();
-  glDrawElements(GL_POINTS, indexData.size(), GL_UNSIGNED_INT, NULL);
+  glDrawElements(GL_TRIANGLES, indexData.size(), GL_UNSIGNED_INT, NULL);
   ERROR_CHECK();
 
   // Disable vertex position
