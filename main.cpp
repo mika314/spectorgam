@@ -99,14 +99,17 @@ int main()
                  }
                }};
   audio.pause(false);
-  e.mouseMotion = [&playFreq](const SDL_MouseMotionEvent &e) {
+  e.mouseMotion = [&playVol, &playFreq](const SDL_MouseMotionEvent &e) {
+    if (playVol > 0)
+      playVol = expf(-0.0045f * e.y);
     playFreq = StartFreq * expf(1.f * e.x / Width * logf(1.f * EndFreq / StartFreq));
   };
   e.mouseButtonDown = [&playVol, &playFreq](const SDL_MouseButtonEvent &e) {
-    playVol = 0.05f;
+    playVol = expf(-0.0045f * e.y);
     playFreq = StartFreq * expf(1.f * e.x / Width * logf(1.f * EndFreq / StartFreq));
   };
   e.mouseButtonUp = [&playVol](const SDL_MouseButtonEvent &) { playVol = 0.f; };
+
   SDL_Keycode lastKey;
   e.keyDown = [&playVol, &playFreq, &lastKey](const SDL_KeyboardEvent &e) {
     int note = -1;
