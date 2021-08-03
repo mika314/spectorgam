@@ -20,15 +20,22 @@ fftw_complex *output;
 std::vector<float> spectr;
 std::mutex mutex;
 
-int main()
+int main(int argc, const char *argv[])
 {
   sdl::Init init(SDL_INIT_EVERYTHING);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+  auto x = 1921;
+  auto y = 2161;
+  if (argc == 3)
+  {
+    x = std::stoi(argv[1]);
+    y = std::stoi(argv[2]);
+  }
   sdl::Window w("Spectrogram",
-                1920,
-                2160,
+                x,
+                y,
                 Width,
                 Height,
                 SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_BORDERLESS);
@@ -92,7 +99,7 @@ int main()
                    if (playVol > vol)
                      vol = playVol;
                    else
-                     vol = vol - 0.001 * (vol - playVol);
+                     vol = vol - 0.0002 * (vol - playVol);
                    pos += 1.f * playFreq * 2 * 3.1415926 / SampleFreq;
                    reinterpret_cast<int16_t *>(stream)[i] =
                      static_cast<int16_t>(vol * 0x8000 * (sin(pos) > 0 ? 1 : -1));

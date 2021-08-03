@@ -303,8 +303,6 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
     LOG("Offset is not a valid glsl program variable!");
   }
 
-  LOG("offset:", offset);
-
   // Initialize clear color
   glClearColor(0.f, 0.f, 0.f, 1.f);
   ERROR_CHECK();
