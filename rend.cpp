@@ -1,5 +1,6 @@
 #include "rend.hpp"
 #include "consts.hpp"
+#include "poly_fit.hpp"
 #include <log/log.hpp>
 
 #include <sdlpp/sdlpp.hpp>
@@ -427,26 +428,52 @@ void Rend::rend(std::vector<float> spectr)
   glVertexAttribPointer(vertexPos3DLocation, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
   ERROR_CHECK();
 
-  auto max = std::max(*std::max_element(std::begin(spectr) + StartFreq * SpectrSize / SampleFreq,
-                                        std::begin(spectr) + EndFreq * SpectrSize / SampleFreq),
-                      1.5E+6f);
+  const auto startIdx = StartFreq * SpectrSize / SampleFreq;
+  const auto endIdx = EndFreq * SpectrSize / SampleFreq;
+
+  const auto c = polyFit(4, std::begin(spectr) + startIdx, std::begin(spectr) + endIdx);
+  auto max = 0.0f;
+  auto max2 = 0.0f;
+  std::vector<float> poly;
+  for (int i = startIdx; i < endIdx; ++i)
+  {
+    auto tmp2 = calcPoly(c, i - startIdx);
+    poly.push_back(tmp2);
+    {
+      if (max2 < tmp2)
+        max2 = tmp2;
+    }
+  }
+
+  for (int i = startIdx; i < endIdx; ++i)
+  {
+    auto tmp2 = poly[i - startIdx];
+    const auto tmp = spectr[i] / (tmp2 + 0.5f * max2);
+    if (max < tmp)
+      max = tmp;
+  }
+
   auto i = 0;
 
   for (auto a : spectr)
   {
     const auto freq = 1.f * i * SampleFreq / SpectrSize;
-    vertexData.push_back(freq);
-    vertexData.push_back(-1.f);
-    vertexData.push_back(a / max);
+    const auto tmp2 = (i >= startIdx && i < endIdx) ? poly[i - startIdx] : 1.0f;
+    const auto y = a / (tmp2 + 0.5f * max2) / max;
 
     vertexData.push_back(freq);
-    vertexData.push_back(a * 2.f / max - 1.f);
-    vertexData.push_back(a / max);
+    vertexData.push_back(-1.f);
+
+    vertexData.push_back(y);
+
+    vertexData.push_back(freq);
+    vertexData.push_back(y * 2.f - 1.f);
+    vertexData.push_back(y);
 
     if (i < Strade)
     {
-      spectrogramData[line * Strade * 6 + i * 6 + 2] = a / max;
-      spectrogramData[line * Strade * 6 + i * 6 + 5] = a / max;
+      spectrogramData[line * Strade * 6 + i * 6 + 2] = y;
+      spectrogramData[line * Strade * 6 + i * 6 + 5] = y;
     }
 
     ++i;
