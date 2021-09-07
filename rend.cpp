@@ -89,8 +89,7 @@ static auto errorCheckImpl(int line) -> void
   }
 }
 
-static auto makeProgram(const char *vertexShaderSource, const char *fragmentShaderSource)
-  -> unsigned
+static auto makeProgram(const char *vertexShaderSource, const char *fragmentShaderSource) -> unsigned
 {
   // setting up Open GL
   auto programId = glCreateProgram();
@@ -346,8 +345,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
     pianoData.push_back(1);
     pianoData.push_back(0);
   }
-  glBufferData(
-    GL_ARRAY_BUFFER, pianoData.size() * sizeof(GLfloat), pianoData.data(), GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, pianoData.size() * sizeof(GLfloat), pianoData.data(), GL_STATIC_DRAW);
   ERROR_CHECK();
 
   glGenBuffers(1, &spectrogramVbo);
@@ -384,10 +382,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
       indexData.push_back(2 * j * Strade + i * 2 + 3);
     }
 
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-               indexData.size() * sizeof(indexData[0]),
-               indexData.data(),
-               GL_STATIC_DRAW);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexData.size() * sizeof(indexData[0]), indexData.data(), GL_STATIC_DRAW);
   ERROR_CHECK();
 }
 
@@ -448,7 +443,7 @@ void Rend::rend(std::vector<float> spectr)
   for (int i = startIdx; i < endIdx; ++i)
   {
     auto tmp2 = poly[i - startIdx];
-    const auto tmp = spectr[i] / (tmp2 + 0.5f * max2);
+    const auto tmp = spectr[i] / std::max(0.01f, (tmp2 + 0.5f * max2));
     if (max < tmp)
       max = tmp;
   }
@@ -459,7 +454,7 @@ void Rend::rend(std::vector<float> spectr)
   {
     const auto freq = 1.f * i * SampleFreq / SpectrSize;
     const auto tmp2 = (i >= startIdx && i < endIdx) ? poly[i - startIdx] : 1.0f;
-    const auto y = a / (tmp2 + 0.5f * max2) / max;
+    const auto y = a / std::max(0.01f, (tmp2 + 0.5f * max2)) / max;
 
     vertexData.push_back(freq);
     vertexData.push_back(-1.f);
@@ -480,8 +475,7 @@ void Rend::rend(std::vector<float> spectr)
   }
   line = (line + LinesNum - 1) % LinesNum;
 
-  glBufferData(
-    GL_ARRAY_BUFFER, vertexData.size() * sizeof(GLfloat), vertexData.data(), GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, vertexData.size() * sizeof(GLfloat), vertexData.data(), GL_STATIC_DRAW);
   ERROR_CHECK();
 
   // Enable vertex position
@@ -512,10 +506,7 @@ void Rend::rend(std::vector<float> spectr)
   glVertexAttribPointer(vertexPos3DLocation, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
   ERROR_CHECK();
 
-  glBufferData(GL_ARRAY_BUFFER,
-               spectrogramData.size() * sizeof(GLfloat),
-               spectrogramData.data(),
-               GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, spectrogramData.size() * sizeof(GLfloat), spectrogramData.data(), GL_STATIC_DRAW);
   ERROR_CHECK();
 
   // Enable vertex position
