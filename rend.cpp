@@ -386,7 +386,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
   ERROR_CHECK();
 }
 
-void Rend::rend(std::vector<float> spectr)
+void Rend::rend(std::vector<float> spectr, bool smartScale)
 {
   glClear(GL_COLOR_BUFFER_BIT);
   ERROR_CHECK();
@@ -426,26 +426,37 @@ void Rend::rend(std::vector<float> spectr)
   const auto startIdx = StartFreq * SpectrSize / SampleFreq;
   const auto endIdx = EndFreq * SpectrSize / SampleFreq;
 
-  const auto c = polyFit(4, std::begin(spectr) + startIdx, std::begin(spectr) + endIdx);
+  std::vector<float> poly;
   auto max = 0.0f;
   auto max2 = 0.0f;
-  std::vector<float> poly;
-  for (int i = startIdx; i < endIdx; ++i)
+  if (smartScale)
   {
-    auto tmp2 = calcPoly(c, i - startIdx);
-    poly.push_back(tmp2);
+    const auto c = polyFit(4, std::begin(spectr) + startIdx, std::begin(spectr) + endIdx);
+    for (int i = startIdx; i < endIdx; ++i)
     {
-      if (max2 < tmp2)
-        max2 = tmp2;
+      auto tmp2 = calcPoly(c, i - startIdx);
+      poly.push_back(tmp2);
+      {
+        if (max2 < tmp2)
+          max2 = tmp2;
+      }
+    }
+
+    for (int i = startIdx; i < endIdx; ++i)
+    {
+      auto tmp2 = poly[i - startIdx];
+      const auto tmp = spectr[i] / std::max(0.01f, (tmp2 + 0.5f * max2));
+      if (max < tmp)
+        max = tmp;
     }
   }
-
-  for (int i = startIdx; i < endIdx; ++i)
+  else
   {
-    auto tmp2 = poly[i - startIdx];
-    const auto tmp = spectr[i] / std::max(0.01f, (tmp2 + 0.5f * max2));
-    if (max < tmp)
-      max = tmp;
+    max = std::max(
+      *std::max_element(std::begin(spectr) + StartFreq * SpectrSize / SampleFreq, std::begin(spectr) + EndFreq * SpectrSize / SampleFreq), 1.5E+6f);
+    max2 = 0;
+    for (int i = startIdx; i < endIdx; ++i)
+      poly.push_back(1);
   }
 
   auto i = 0;

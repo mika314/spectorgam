@@ -118,7 +118,8 @@ int main(int argc, const char *argv[])
   e.mouseButtonUp = [&playVol](const SDL_MouseButtonEvent &) { playVol = 0.f; };
 
   SDL_Keycode lastKey;
-  e.keyDown = [&playVol, &playFreq, &lastKey](const SDL_KeyboardEvent &e) {
+  bool smartScale = true;
+  e.keyDown = [&playVol, &playFreq, &lastKey, &smartScale](const SDL_KeyboardEvent &e) {
     int note = -1;
     lastKey = e.keysym.sym;
     switch (e.keysym.sym)
@@ -158,6 +159,7 @@ int main(int argc, const char *argv[])
     case SDLK_PERIOD: note = 24 + 2; break;
     case SDLK_SEMICOLON: note = 24 + 3; break;
     case SDLK_SLASH: note = 24 + 4; break;
+    case SDLK_TAB: smartScale = !smartScale; break;
     }
     if (note >= 0)
     {
@@ -178,7 +180,7 @@ int main(int argc, const char *argv[])
       std::lock_guard<std::mutex> lock(mutex);
       if (!spectr.empty())
       {
-        rend.rend(std::move(spectr));
+        rend.rend(std::move(spectr), smartScale);
         w.glSwap();
       }
     }

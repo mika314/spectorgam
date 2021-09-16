@@ -10,7 +10,7 @@ class Rend
 {
 public:
   Rend(sdl::Window &);
-  auto rend(std::vector<float> spectr) -> void;
+  auto rend(std::vector<float> spectr, bool smartScale) -> void;
 
 private:
   void *ctx;
