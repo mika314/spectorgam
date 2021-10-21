@@ -453,7 +453,7 @@ void Rend::rend(std::vector<float> spectr, bool smartScale)
   else
   {
     max = std::max(
-      *std::max_element(std::begin(spectr) + StartFreq * SpectrSize / SampleFreq, std::begin(spectr) + EndFreq * SpectrSize / SampleFreq), 1.5E+6f);
+      *std::max_element(std::begin(spectr) + StartFreq * SpectrSize / SampleFreq, std::begin(spectr) + EndFreq * SpectrSize / SampleFreq), 1.5E+4f);
     max2 = 0;
     for (int i = startIdx; i < endIdx; ++i)
       poly.push_back(1);
