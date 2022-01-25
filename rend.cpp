@@ -11,7 +11,7 @@
 
 #include <GL/glu.h>
 
-const auto LinesNum = 10 * 30;
+const auto LinesNum = 5 * 30;
 const auto Strade = EndFreq * SpectrSize / SampleFreq;
 
 static auto printProgramLog(GLuint program) -> void
@@ -209,7 +209,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
 
     in vec3 LVertexPos3D;
     uniform float offset;
-    float LinesNum = 10 * 30;
+    float LinesNum = 5 * 30;
 
     out vec4 color;
     void main()
