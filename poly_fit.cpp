@@ -2,7 +2,7 @@
 #include "gaussian_elimination.hpp"
 #include <cmath>
 
-std::vector<float> polyFit(size_t N, std::vector<float>::iterator b, std::vector<float>::iterator e)
+std::vector<float> polyFit(std::size_t N, std::vector<float>::iterator b, std::vector<float>::iterator e)
 {
   const auto sz = std::distance(b, e);
   Matrix m;

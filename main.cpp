@@ -35,6 +35,10 @@ int main(int argc, const char *argv[])
   }
   sdl::Window w("Spectrogram", x, y, Width, Height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_BORDERLESS);
   Rend rend(w);
+  {
+    auto icon = sdl::Surface(SDL_LoadBMP("icon.bmp"));
+    w.setIcon(icon.get());
+  }
 
   sdl::EventHandler e;
   auto done = false;
@@ -57,7 +61,7 @@ int main(int argc, const char *argv[])
 
   const auto fps = 30;
   auto capture = sdl::Audio{nullptr, true, &want, &captureHave, 0, [](Uint8 *stream, int len) {
-                              static size_t pos = 0;
+                              static std::size_t pos = 0;
                               static std::vector<int16_t> rawInput;
                               rawInput.resize(SpectrSize);
                               for (auto i = 0U; i < len / sizeof(int16_t); ++i)
