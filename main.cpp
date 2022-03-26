@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <fftw3.h>
 #include <log/log.hpp>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -52,7 +53,6 @@ int main(int argc, const char *argv[])
     want.samples = 1024;
     return want;
   }();
-  SDL_AudioSpec captureHave;
   input = fftw_alloc_complex(SpectrSize);
   output = fftw_alloc_complex(SpectrSize);
   memset(input, 0, SpectrSize * sizeof(fftw_complex));
@@ -60,31 +60,7 @@ int main(int argc, const char *argv[])
   plan = fftw_plan_dft_1d(SpectrSize, input, output, FFTW_FORWARD, FFTW_MEASURE);
 
   const auto fps = 30;
-  auto capture = sdl::Audio{nullptr, true, &want, &captureHave, 0, [](Uint8 *stream, int len) {
-                              static std::size_t pos = 0;
-                              static std::vector<int16_t> rawInput;
-                              rawInput.resize(SpectrSize);
-                              for (auto i = 0U; i < len / sizeof(int16_t); ++i)
-                              {
-                                rawInput[pos] = reinterpret_cast<int16_t *>(stream)[i];
-                                input[pos++][1] = 0;
-                                if (pos >= rawInput.size())
-                                  pos = 0;
-                              }
-
-                              for (auto i = 0U; i < SpectrSize; ++i)
-                              {
-                                input[i][0] = expf(-0.00025f * (SpectrSize - i)) * rawInput[(pos + i) % rawInput.size()];
-                                input[i][1] = 0;
-                              }
-
-                              fftw_execute(plan);
-                              std::lock_guard<std::mutex> lock(mutex);
-                              spectr.clear();
-                              for (auto j = 0U; j < SpectrSize / 2; ++j)
-                                spectr.push_back(sqrt(output[j][0] * output[j][0] + output[j][1] * output[j][1]));
-                            }};
-  capture.pause(false);
+  auto capture = std::unique_ptr<sdl::Audio>{};
   float playFreq = 440;
   float playVol = 0.f;
   SDL_AudioSpec have;
@@ -170,6 +146,46 @@ int main(int argc, const char *argv[])
 
   while (!done)
   {
+    static auto audioCaptureTime = SDL_GetTicks();
+    static auto samples = 0LL;
+    if (std::abs(audioCaptureTime + samples * 1000 / SampleFreq - SDL_GetTicks()) > 1000)
+    {
+      LOG("Restart recording");
+      capture = nullptr;
+    }
+    if (!capture)
+    {
+      SDL_AudioSpec captureHave;
+      audioCaptureTime = SDL_GetTicks();
+      samples = 0;
+      capture = std::make_unique<sdl::Audio>(nullptr, true, &want, &captureHave, 0, [](Uint8 *stream, int len) {
+        static std::size_t pos = 0;
+        static std::vector<int16_t> rawInput;
+        rawInput.resize(SpectrSize);
+        for (auto i = 0U; i < len / sizeof(int16_t); ++i)
+        {
+          rawInput[pos] = reinterpret_cast<int16_t *>(stream)[i];
+          input[pos++][1] = 0;
+          if (pos >= rawInput.size())
+            pos = 0;
+        }
+
+        for (auto i = 0U; i < SpectrSize; ++i)
+        {
+          input[i][0] = expf(-0.00025f * (SpectrSize - i)) * rawInput[(pos + i) % rawInput.size()];
+          input[i][1] = 0;
+        }
+
+        fftw_execute(plan);
+        std::lock_guard<std::mutex> lock(mutex);
+        spectr.clear();
+        for (auto j = 0U; j < SpectrSize / 2; ++j)
+          spectr.push_back(sqrt(output[j][0] * output[j][0] + output[j][1] * output[j][1]));
+        samples += len / sizeof(int16_t);
+      });
+      capture->pause(false);
+    }
+
     const auto t1 = SDL_GetTicks();
     while (e.poll()) {}
     {
@@ -184,7 +200,7 @@ int main(int argc, const char *argv[])
     if (1000 / fps > t2 - t1)
       SDL_Delay(1000 / fps - (t2 - t1));
   }
-  capture.pause(true);
+  capture->pause(true);
 
   fftw_destroy_plan(plan);
   fftw_free(input);
