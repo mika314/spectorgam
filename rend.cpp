@@ -431,15 +431,16 @@ void Rend::rend(std::vector<float> spectr, bool smartScale)
   if (smartScale)
   {
     float a = 0;
+    const auto filtK = 1.f / 64.f; // higher denominator harder filtering
     for (auto s = startIdx; s < endIdx; ++s)
     {
-      a = a + .005 * (spectr[s] - a);
+      a = a + filtK * (spectr[s] - a);
       poly.push_back(a);
     }
     max = 0;
     for (auto s = endIdx - 1; s >= startIdx; --s)
     {
-      a = a + .005 * (poly[s - startIdx] - a);
+      a = a + filtK * (poly[s - startIdx] - a);
       if (max < spectr[s] / a)
         max = spectr[s] / a;
       poly[s - startIdx] = a;
