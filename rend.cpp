@@ -1,6 +1,5 @@
 #include "rend.hpp"
 #include "consts.hpp"
-#include "poly_fit.hpp"
 #include <log/log.hpp>
 
 #include <sdlpp/sdlpp.hpp>
@@ -315,39 +314,6 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
   glGenBuffers(1, &pianoVbo);
   ERROR_CHECK();
 
-  glBindBuffer(GL_ARRAY_BUFFER, pianoVbo);
-  ERROR_CHECK();
-  bool isWhite[] = {true, false, true, true, false, true, false, true, true, false, true, false};
-  std::vector<float> pianoData;
-  for (int i = 0; i < 49 + 12; ++i)
-  {
-    const auto freq1 = 55 * powf(2, (i - .46f) / 12.f);
-    pianoData.push_back(freq1);
-    pianoData.push_back(0);
-    pianoData.push_back(isWhite[i % 12] ? 1 : 0);
-    pianoData.push_back(freq1);
-    pianoData.push_back(1);
-    pianoData.push_back(isWhite[i % 12] ? 1 : 0);
-
-    const auto freq2 = 55 * powf(2, (i + .46f) / 12.f);
-    pianoData.push_back(freq2);
-    pianoData.push_back(0);
-    pianoData.push_back(isWhite[i % 12] ? 1 : 0);
-    pianoData.push_back(freq2);
-    pianoData.push_back(1);
-    pianoData.push_back(isWhite[i % 12] ? 1 : 0);
-
-    const auto freq3 = 55 * powf(2, (i + .50f) / 12.f);
-    pianoData.push_back(freq3);
-    pianoData.push_back(0);
-    pianoData.push_back(0);
-    pianoData.push_back(freq3);
-    pianoData.push_back(1);
-    pianoData.push_back(0);
-  }
-  glBufferData(GL_ARRAY_BUFFER, pianoData.size() * sizeof(GLfloat), pianoData.data(), GL_STATIC_DRAW);
-  ERROR_CHECK();
-
   glGenBuffers(1, &spectrogramVbo);
   ERROR_CHECK();
   glBindBuffer(GL_ARRAY_BUFFER, spectrogramVbo);
@@ -388,6 +354,40 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
 
 void Rend::rend(std::vector<float> spectr, bool smartScale)
 {
+  glBindBuffer(GL_ARRAY_BUFFER, pianoVbo);
+  ERROR_CHECK();
+  bool isWhite[] = {true, false, true, true, false, true, false, true, true, false, true, false};
+  std::vector<float> pianoData;
+  const auto w = smartScale ? 0.25f : 0.5f;
+  for (int i = 0; i < 49 + 12; ++i)
+  {
+    const auto freq1 = 55 * powf(2, (i - .46f) / 12.f);
+    pianoData.push_back(freq1);
+    pianoData.push_back(0);
+    pianoData.push_back(isWhite[i % 12] ? w : 0);
+    pianoData.push_back(freq1);
+    pianoData.push_back(1);
+    pianoData.push_back(isWhite[i % 12] ? w : 0);
+
+    const auto freq2 = 55 * powf(2, (i + .46f) / 12.f);
+    pianoData.push_back(freq2);
+    pianoData.push_back(0);
+    pianoData.push_back(isWhite[i % 12] ? w : 0);
+    pianoData.push_back(freq2);
+    pianoData.push_back(1);
+    pianoData.push_back(isWhite[i % 12] ? w : 0);
+
+    const auto freq3 = 55 * powf(2, (i + .50f) / 12.f);
+    pianoData.push_back(freq3);
+    pianoData.push_back(0);
+    pianoData.push_back(0);
+    pianoData.push_back(freq3);
+    pianoData.push_back(1);
+    pianoData.push_back(0);
+  }
+  glBufferData(GL_ARRAY_BUFFER, pianoData.size() * sizeof(GLfloat), pianoData.data(), GL_STATIC_DRAW);
+  ERROR_CHECK();
+
   glClear(GL_COLOR_BUFFER_BIT);
   ERROR_CHECK();
 
@@ -427,34 +427,28 @@ void Rend::rend(std::vector<float> spectr, bool smartScale)
   const auto endIdx = EndFreq * SpectrSize / SampleFreq;
 
   std::vector<float> poly;
-  auto max = 0.0f;
-  auto max2 = 0.0f;
+  auto max = 0.f;
   if (smartScale)
   {
-    const auto c = polyFit(4, std::begin(spectr) + startIdx, std::begin(spectr) + endIdx);
-    for (int i = startIdx; i < endIdx; ++i)
+    float a = 0;
+    for (auto s = startIdx; s < endIdx; ++s)
     {
-      auto tmp2 = calcPoly(c, i - startIdx);
-      poly.push_back(tmp2);
-      {
-        if (max2 < tmp2)
-          max2 = tmp2;
-      }
+      a = a + .005 * (spectr[s] - a);
+      poly.push_back(a);
     }
-
-    for (int i = startIdx; i < endIdx; ++i)
+    max = 0;
+    for (auto s = endIdx - 1; s >= startIdx; --s)
     {
-      auto tmp2 = poly[i - startIdx];
-      const auto tmp = spectr[i] / std::max(0.01f, (tmp2 + 0.5f * max2));
-      if (max < tmp)
-        max = tmp;
+      a = a + .005 * (poly[s - startIdx] - a);
+      if (max < spectr[s] / a)
+        max = spectr[s] / a;
+      poly[s - startIdx] = a;
     }
   }
   else
   {
     max = std::max(
       *std::max_element(std::begin(spectr) + StartFreq * SpectrSize / SampleFreq, std::begin(spectr) + EndFreq * SpectrSize / SampleFreq), 1.5E+4f);
-    max2 = 0;
     for (int i = startIdx; i < endIdx; ++i)
       poly.push_back(1);
   }
@@ -465,7 +459,8 @@ void Rend::rend(std::vector<float> spectr, bool smartScale)
   {
     const auto freq = 1.f * i * SampleFreq / SpectrSize;
     const auto tmp2 = (i >= startIdx && i < endIdx) ? poly[i - startIdx] : 1.0f;
-    const auto y = a / std::max(0.01f, (tmp2 + 0.5f * max2)) / max;
+    const auto y = a / tmp2 / max;
+    // const auto y = tmp2 / max / 500000;
 
     vertexData.push_back(freq);
     vertexData.push_back(-1.f);
