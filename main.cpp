@@ -1,4 +1,5 @@
 #include "consts.hpp"
+#include "elc.hpp"
 #include "rend.hpp"
 #include <algorithm>
 #include <fftw3.h>
@@ -27,6 +28,7 @@ int main(int argc, const char *argv[])
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+  SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0");
   auto x = 1921;
   auto y = 2161;
   if (argc == 3)
@@ -34,7 +36,8 @@ int main(int argc, const char *argv[])
     x = std::stoi(argv[1]);
     y = std::stoi(argv[2]);
   }
-  sdl::Window w("Spectrogram", x, y, Width, Height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_BORDERLESS);
+  sdl::Window w(
+    "Spectrogram", x, y, Width, Height, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_BORDERLESS);
   Rend rend(w);
   {
     auto icon = sdl::Surface(SDL_LoadBMP("icon.bmp"));
@@ -64,19 +67,21 @@ int main(int argc, const char *argv[])
   float playFreq = 440;
   float playVol = 0.f;
   SDL_AudioSpec have;
-  auto audio = sdl::Audio{nullptr, false, &want, &have, 0, [&playFreq, &playVol](Uint8 *stream, int len) {
-                            static double pos = 0;
-                            static float vol = 0;
-                            for (auto i = 0U; i < len / sizeof(int16_t); ++i)
-                            {
-                              if (playVol > vol)
-                                vol = playVol;
-                              else
-                                vol = vol - 0.0002 * (vol - playVol);
-                              pos += 1.f * playFreq * 2 * 3.1415926 / SampleFreq;
-                              reinterpret_cast<int16_t *>(stream)[i] = static_cast<int16_t>(vol * 0x8000 * (sin(pos) > 0 ? 1 : -1));
-                            }
-                          }};
+  auto audio =
+    sdl::Audio{nullptr, false, &want, &have, 0, [&playFreq, &playVol](Uint8 *stream, int len) {
+                 static double pos = 0;
+                 static float vol = 0;
+                 for (auto i = 0U; i < len / sizeof(int16_t); ++i)
+                 {
+                   if (playVol > vol)
+                     vol = playVol;
+                   else
+                     vol = vol - 0.0002 * (vol - playVol);
+                   pos += 1.f * playFreq * 2 * 3.1415926 / SampleFreq;
+                   reinterpret_cast<int16_t *>(stream)[i] =
+                     static_cast<int16_t>(vol * 0x8000 * (sin(pos) > 0 ? 1 : -1));
+                 }
+               }};
   audio.pause(false);
   e.mouseMotion = [&playVol, &playFreq](const SDL_MouseMotionEvent &e) {
     if (playVol > 0)
@@ -158,31 +163,33 @@ int main(int argc, const char *argv[])
       SDL_AudioSpec captureHave;
       audioCaptureTime = SDL_GetTicks();
       samples = 0;
-      capture = std::make_unique<sdl::Audio>(nullptr, true, &want, &captureHave, 0, [](Uint8 *stream, int len) {
-        static std::size_t pos = 0;
-        static std::vector<int16_t> rawInput;
-        rawInput.resize(SpectrSize);
-        for (auto i = 0U; i < len / sizeof(int16_t); ++i)
-        {
-          rawInput[pos] = reinterpret_cast<int16_t *>(stream)[i];
-          input[pos++][1] = 0;
-          if (pos >= rawInput.size())
-            pos = 0;
-        }
+      capture =
+        std::make_unique<sdl::Audio>(nullptr, true, &want, &captureHave, 0, [](Uint8 *stream, int len) {
+          static std::size_t pos = 0;
+          static std::vector<int16_t> rawInput;
+          rawInput.resize(SpectrSize);
+          for (auto i = 0U; i < len / sizeof(int16_t); ++i)
+          {
+            rawInput[pos] = reinterpret_cast<int16_t *>(stream)[i];
+            input[pos++][1] = 0;
+            if (pos >= rawInput.size())
+              pos = 0;
+          }
 
-        for (auto i = 0U; i < SpectrSize; ++i)
-        {
-          input[i][0] = expf(-0.00025f * (SpectrSize - i)) * rawInput[(pos + i) % rawInput.size()];
-          input[i][1] = 0;
-        }
+          for (auto i = 0U; i < SpectrSize; ++i)
+          {
+            input[i][0] = expf(-0.00025f * (SpectrSize - i)) * rawInput[(pos + i) % rawInput.size()];
+            input[i][1] = 0;
+          }
 
-        fftw_execute(plan);
-        std::lock_guard<std::mutex> lock(mutex);
-        spectr.clear();
-        for (auto j = 0U; j < SpectrSize / 2; ++j)
-          spectr.push_back(sqrt(output[j][0] * output[j][0] + output[j][1] * output[j][1]));
-        samples += len / sizeof(int16_t);
-      });
+          fftw_execute(plan);
+          std::lock_guard<std::mutex> lock(mutex);
+          spectr.clear();
+          for (auto j = 0U; j < SpectrSize / 2; ++j)
+            spectr.push_back(elcK(j * SampleFreq / SpectrSize) *
+                             sqrt((output[j][0] * output[j][0] + output[j][1] * output[j][1])));
+          samples += len / sizeof(int16_t);
+        });
       capture->pause(false);
     }
 

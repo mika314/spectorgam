@@ -423,8 +423,8 @@ void Rend::rend(std::vector<float> spectr, bool smartScale)
   glVertexAttribPointer(vertexPos3DLocation, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
   ERROR_CHECK();
 
-  const auto startIdx = StartFreq * SpectrSize / SampleFreq;
-  const auto endIdx = EndFreq * SpectrSize / SampleFreq;
+  const auto startIdx = StartFreq / 2 * SpectrSize / SampleFreq;
+  const auto endIdx = EndFreq * 2 * SpectrSize / SampleFreq;
 
   std::vector<float> poly;
   auto max = 0.f;
