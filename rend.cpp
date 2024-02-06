@@ -199,7 +199,13 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
     out vec4 LFragment;
     void main()
     {
-      LFragment = color;
+      const float N = 1920. / 12. / 5.;
+      vec2 screenPos = gl_FragCoord.xy;
+
+      if (int(mod(screenPos.x, N)) == 0)
+        LFragment = mix(vec4(0.0, 0.0, 0.0, 1.0), color, 0.6);
+      else
+        LFragment = color;
     }
   )");
 
@@ -282,7 +288,13 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
     out vec4 LFragment;
     void main()
     {
-      LFragment = color;
+      const float N = 1920. / 12. / 5.;
+      vec2 screenPos = gl_FragCoord.xy;
+
+      if (int(mod(screenPos.x, N)) == 0)
+        LFragment = mix(vec4(1.0, 0.0, 0.0, 1.0), color, 0.8);
+      else
+        LFragment = color;
     }
   )");
 
@@ -348,7 +360,8 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
       indexData.push_back(2 * j * Strade + i * 2 + 3);
     }
 
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexData.size() * sizeof(indexData[0]), indexData.data(), GL_STATIC_DRAW);
+  glBufferData(
+    GL_ELEMENT_ARRAY_BUFFER, indexData.size() * sizeof(indexData[0]), indexData.data(), GL_STATIC_DRAW);
   ERROR_CHECK();
 }
 
@@ -448,8 +461,9 @@ void Rend::rend(std::vector<float> spectr, bool smartScale)
   }
   else
   {
-    max = std::max(
-      *std::max_element(std::begin(spectr) + StartFreq * SpectrSize / SampleFreq, std::begin(spectr) + EndFreq * SpectrSize / SampleFreq), 1.5E+4f);
+    max = std::max(*std::max_element(std::begin(spectr) + StartFreq * SpectrSize / SampleFreq,
+                                     std::begin(spectr) + EndFreq * SpectrSize / SampleFreq),
+                   1.5E+4f);
     for (int i = startIdx; i < endIdx; ++i)
       poly.push_back(1);
   }
@@ -513,7 +527,8 @@ void Rend::rend(std::vector<float> spectr, bool smartScale)
   glVertexAttribPointer(vertexPos3DLocation, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
   ERROR_CHECK();
 
-  glBufferData(GL_ARRAY_BUFFER, spectrogramData.size() * sizeof(GLfloat), spectrogramData.data(), GL_STATIC_DRAW);
+  glBufferData(
+    GL_ARRAY_BUFFER, spectrogramData.size() * sizeof(GLfloat), spectrogramData.data(), GL_STATIC_DRAW);
   ERROR_CHECK();
 
   // Enable vertex position
