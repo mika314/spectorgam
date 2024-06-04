@@ -15,13 +15,15 @@ public:
 
 private:
   void *ctx;
-  unsigned programId;
-  unsigned pianoProgramId;
-  unsigned spectrogramProgramId;
+  unsigned spectrogramPid;
+  unsigned lowerPianoPid;
+  unsigned upperPianoPid;
+  unsigned rollingSpectrogramPid;
   int offset;
   int vertexPos3DLocation;
   unsigned vbo = 0;
-  unsigned pianoVbo = 0;
+  unsigned lowerPianoVbo = 0;
+  unsigned upperPianoVbo = 0;
   unsigned spectrogramVbo;
   unsigned ibo = 0;
   std::vector<float> vertexData;

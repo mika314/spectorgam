@@ -156,7 +156,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
     throw -3;
   }
 
-  programId = makeProgram(R"(
+  spectrogramPid = makeProgram(R"(
     #version 140
 
     in vec3 LVertexPos3D;
@@ -193,7 +193,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
       color = vec4(c.r * v * (1 - fNote) + v * fNote, c.g * v * (1 - fNote) + v * fNote, c.b * v * (1 - fNote) + v * fNote, c.a);
     }
   )",
-                          R"(
+                               R"(
     #version 140
     in vec4 color;
     out vec4 LFragment;
@@ -209,7 +209,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
     }
   )");
 
-  spectrogramProgramId = makeProgram(R"(
+  rollingSpectrogramPid = makeProgram(R"(
     #version 140
 
     in vec3 LVertexPos3D;
@@ -245,7 +245,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
         case 1: c = vec4(1, 0, 1, 1); break;
         case 8: c = vec4(1, 0, 0.5, 1); break;
       }
-      color = vec4(c.r * v * (1 - fNote) + v * fNote, c.g * v * (1 - fNote) + v * fNote, c.b * v * (1 - fNote) + v * fNote, c.a);
+      color = vec4(c.r * v * (1 - fNote) + v * fNote, c.g * v * (1 - fNote) + v * fNote, c.b * v * (1 - fNote) + v * fNote, v);
 
       if (y < -0.5)
         y += 2 * 0.75;
@@ -256,7 +256,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
       gl_Position = vec4(x, y, 0, 1);
     }
   )",
-                                     R"(
+                                      R"(
     #version 140
     in vec4 color;
     out vec4 LFragment;
@@ -266,7 +266,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
     }
   )");
 
-  pianoProgramId = makeProgram(R"(
+  lowerPianoPid = makeProgram(R"(
     #version 140
 
     in vec3 LVertexPos3D;
@@ -282,7 +282,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
       color = vec4(LVertexPos3D.z, LVertexPos3D.z, LVertexPos3D.z, 1.0);
     }
   )",
-                               R"(
+                              R"(
     #version 140
     in vec4 color;
     out vec4 LFragment;
@@ -298,8 +298,37 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
     }
   )");
 
+  upperPianoPid = makeProgram(R"(
+    #version 140
+
+    in vec3 LVertexPos3D;
+
+    out vec4 color;
+    void main()
+    {
+      float StartFreq = 55;
+      float EndFreq = 2 * 880;
+      float freq = LVertexPos3D.x;
+      float x = log(freq / StartFreq) / log(EndFreq / StartFreq) * 2 - 1;
+      gl_Position = vec4(x, LVertexPos3D.y * 1.5 - 0.5, 0, 1);
+      color = vec4(LVertexPos3D.z, LVertexPos3D.z, LVertexPos3D.z, 1.0);
+    }
+  )",
+                              R"(
+    #version 140
+    in vec4 color;
+    out vec4 LFragment;
+    void main()
+    {
+      const float N = 1920. / 12. / 5.;
+      vec2 screenPos = gl_FragCoord.xy;
+
+      LFragment = color;
+    }
+  )");
+
   // Get vertex attribute location
-  vertexPos3DLocation = glGetAttribLocation(programId, "LVertexPos3D");
+  vertexPos3DLocation = glGetAttribLocation(spectrogramPid, "LVertexPos3D");
   ERROR_CHECK();
   if (vertexPos3DLocation == -1)
   {
@@ -307,7 +336,7 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
     throw -5;
   }
 
-  offset = glGetUniformLocation(spectrogramProgramId, "offset");
+  offset = glGetUniformLocation(rollingSpectrogramPid, "offset");
   ERROR_CHECK();
   if (offset == -1)
   {
@@ -318,12 +347,13 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
   glClearColor(0.f, 0.f, 0.f, 1.f);
   ERROR_CHECK();
 
-  // Create VBO
   glGenBuffers(1, &vbo);
   ERROR_CHECK();
 
-  // Create VBO
-  glGenBuffers(1, &pianoVbo);
+  glGenBuffers(1, &lowerPianoVbo);
+  ERROR_CHECK();
+
+  glGenBuffers(1, &upperPianoVbo);
   ERROR_CHECK();
 
   glGenBuffers(1, &spectrogramVbo);
@@ -367,64 +397,115 @@ Rend::Rend(sdl::Window &window) : ctx(SDL_GL_CreateContext(window.get()))
 
 void Rend::rend(std::vector<float> spectr, bool smartScale)
 {
-  glBindBuffer(GL_ARRAY_BUFFER, pianoVbo);
-  ERROR_CHECK();
-  bool isWhite[] = {true, false, true, true, false, true, false, true, true, false, true, false};
-  std::vector<float> pianoData;
-  const auto w = smartScale ? 0.25f : 0.5f;
-  for (int i = 0; i < 49 + 12; ++i)
-  {
-    const auto freq1 = 55 * powf(2, (i - .46f) / 12.f);
-    pianoData.push_back(freq1);
-    pianoData.push_back(0);
-    pianoData.push_back(isWhite[i % 12] ? w : 0);
-    pianoData.push_back(freq1);
-    pianoData.push_back(1);
-    pianoData.push_back(isWhite[i % 12] ? w : 0);
-
-    const auto freq2 = 55 * powf(2, (i + .46f) / 12.f);
-    pianoData.push_back(freq2);
-    pianoData.push_back(0);
-    pianoData.push_back(isWhite[i % 12] ? w : 0);
-    pianoData.push_back(freq2);
-    pianoData.push_back(1);
-    pianoData.push_back(isWhite[i % 12] ? w : 0);
-
-    const auto freq3 = 55 * powf(2, (i + .50f) / 12.f);
-    pianoData.push_back(freq3);
-    pianoData.push_back(0);
-    pianoData.push_back(0);
-    pianoData.push_back(freq3);
-    pianoData.push_back(1);
-    pianoData.push_back(0);
-  }
-  glBufferData(GL_ARRAY_BUFFER, pianoData.size() * sizeof(GLfloat), pianoData.data(), GL_STATIC_DRAW);
-  ERROR_CHECK();
-
+  constexpr bool isWhite[] = {
+    true, false, true, true, false, true, false, true, true, false, true, false};
   glClear(GL_COLOR_BUFFER_BIT);
   ERROR_CHECK();
-
   glEnable(GL_BLEND);
   ERROR_CHECK();
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   ERROR_CHECK();
 
-  glUseProgram(pianoProgramId);
-  ERROR_CHECK();
-  glBindBuffer(GL_ARRAY_BUFFER, pianoVbo);
-  ERROR_CHECK();
-  glVertexAttribPointer(vertexPos3DLocation, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
-  ERROR_CHECK();
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-  ERROR_CHECK();
-  glEnableVertexAttribArray(vertexPos3DLocation);
-  ERROR_CHECK();
-  glDrawElements(GL_TRIANGLES, 3 * (49 + 12) * 6, GL_UNSIGNED_INT, NULL);
-  ERROR_CHECK();
-  glDisableVertexAttribArray(vertexPos3DLocation);
-  ERROR_CHECK();
+  {
+    glBindBuffer(GL_ARRAY_BUFFER, upperPianoVbo);
+    ERROR_CHECK();
+    std::vector<float> pianoData;
+    const auto w = 0.063f;
+    for (int i = 0; i < 49 + 12; ++i)
+    {
+      const auto freq1 = 55 * powf(2, (i - .46f) / 12.f);
+      pianoData.push_back(freq1);
+      pianoData.push_back(0);
+      pianoData.push_back(isWhite[i % 12] ? w : 0);
+      pianoData.push_back(freq1);
+      pianoData.push_back(1);
+      pianoData.push_back(isWhite[i % 12] ? w : 0);
 
-  glUseProgram(programId);
+      const auto freq2 = 55 * powf(2, (i + .46f) / 12.f);
+      pianoData.push_back(freq2);
+      pianoData.push_back(0);
+      pianoData.push_back(isWhite[i % 12] ? w : 0);
+      pianoData.push_back(freq2);
+      pianoData.push_back(1);
+      pianoData.push_back(isWhite[i % 12] ? w : 0);
+
+      const auto freq3 = 55 * powf(2, (i + .50f) / 12.f);
+      pianoData.push_back(freq3);
+      pianoData.push_back(0);
+      pianoData.push_back(0);
+      pianoData.push_back(freq3);
+      pianoData.push_back(1);
+      pianoData.push_back(0);
+    }
+    glBufferData(GL_ARRAY_BUFFER, pianoData.size() * sizeof(GLfloat), pianoData.data(), GL_STATIC_DRAW);
+    ERROR_CHECK();
+
+    glUseProgram(upperPianoPid);
+    ERROR_CHECK();
+    glBindBuffer(GL_ARRAY_BUFFER, upperPianoVbo);
+    ERROR_CHECK();
+    glVertexAttribPointer(vertexPos3DLocation, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
+    ERROR_CHECK();
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    ERROR_CHECK();
+    glEnableVertexAttribArray(vertexPos3DLocation);
+    ERROR_CHECK();
+    glDrawElements(GL_TRIANGLES, 3 * (49 + 12) * 6, GL_UNSIGNED_INT, NULL);
+    ERROR_CHECK();
+    glDisableVertexAttribArray(vertexPos3DLocation);
+    ERROR_CHECK();
+  }
+  {
+    glBindBuffer(GL_ARRAY_BUFFER, lowerPianoVbo);
+    ERROR_CHECK();
+    std::vector<float> pianoData;
+    const auto w = smartScale ? 0.25f : 0.5f;
+    for (int i = 0; i < 49 + 12; ++i)
+    {
+      const auto freq1 = 55 * powf(2, (i - .46f) / 12.f);
+      pianoData.push_back(freq1);
+      pianoData.push_back(0);
+      pianoData.push_back(isWhite[i % 12] ? w : 0);
+      pianoData.push_back(freq1);
+      pianoData.push_back(1);
+      pianoData.push_back(isWhite[i % 12] ? w : 0);
+
+      const auto freq2 = 55 * powf(2, (i + .46f) / 12.f);
+      pianoData.push_back(freq2);
+      pianoData.push_back(0);
+      pianoData.push_back(isWhite[i % 12] ? w : 0);
+      pianoData.push_back(freq2);
+      pianoData.push_back(1);
+      pianoData.push_back(isWhite[i % 12] ? w : 0);
+
+      const auto freq3 = 55 * powf(2, (i + .50f) / 12.f);
+      pianoData.push_back(freq3);
+      pianoData.push_back(0);
+      pianoData.push_back(0);
+      pianoData.push_back(freq3);
+      pianoData.push_back(1);
+      pianoData.push_back(0);
+    }
+    glBufferData(GL_ARRAY_BUFFER, pianoData.size() * sizeof(GLfloat), pianoData.data(), GL_STATIC_DRAW);
+    ERROR_CHECK();
+
+    glUseProgram(lowerPianoPid);
+    ERROR_CHECK();
+    glBindBuffer(GL_ARRAY_BUFFER, lowerPianoVbo);
+    ERROR_CHECK();
+    glVertexAttribPointer(vertexPos3DLocation, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), NULL);
+    ERROR_CHECK();
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    ERROR_CHECK();
+    glEnableVertexAttribArray(vertexPos3DLocation);
+    ERROR_CHECK();
+    glDrawElements(GL_TRIANGLES, 3 * (49 + 12) * 6, GL_UNSIGNED_INT, NULL);
+    ERROR_CHECK();
+    glDisableVertexAttribArray(vertexPos3DLocation);
+    ERROR_CHECK();
+  }
+
+  glUseProgram(spectrogramPid);
   ERROR_CHECK();
 
   // VBO data
@@ -513,7 +594,7 @@ void Rend::rend(std::vector<float> spectr, bool smartScale)
   glDisableVertexAttribArray(vertexPos3DLocation);
   ERROR_CHECK();
 
-  glUseProgram(spectrogramProgramId);
+  glUseProgram(rollingSpectrogramPid);
   ERROR_CHECK();
 
   if (offset >= 0)
