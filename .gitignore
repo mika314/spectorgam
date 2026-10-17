@@ -1,3 +1,5 @@
 *~
 /spectrogram
 /.coddle/
+/.clangd
+/.dir-locals.el

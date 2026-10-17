@@ -151,18 +151,9 @@ int main(int argc, const char *argv[])
 
   while (!done)
   {
-    static auto audioCaptureTime = SDL_GetTicks();
-    static auto samples = 0LL;
-    if (std::abs(audioCaptureTime + samples * 1000 / SampleFreq - SDL_GetTicks()) > 1000)
-    {
-      LOG("Restart recording");
-      capture = nullptr;
-    }
     if (!capture)
     {
       SDL_AudioSpec captureHave;
-      audioCaptureTime = SDL_GetTicks();
-      samples = 0;
       capture =
         std::make_unique<sdl::Audio>(nullptr, true, &want, &captureHave, 0, [](Uint8 *stream, int len) {
           static std::size_t pos = 0;
@@ -188,7 +179,6 @@ int main(int argc, const char *argv[])
           for (auto j = 0U; j < SpectrSize / 2; ++j)
             spectr.push_back(elcK(j * SampleFreq / SpectrSize) *
                              sqrt((output[j][0] * output[j][0] + output[j][1] * output[j][1])));
-          samples += len / sizeof(int16_t);
         });
       capture->pause(false);
     }
